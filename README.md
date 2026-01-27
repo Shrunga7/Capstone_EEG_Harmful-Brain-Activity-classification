@@ -1,4 +1,4 @@
-Dataset: https://www.kaggle.com/competitions/hms-harmful-brain-activity-classification/data
+Dataset: https://www.kaggle.com/competitions/hms-harmful-brain-activity-classification/data  
 **Objective**: To build a platform that streams (simulated) live biosignals to classify different types of harmful brain activities in real-time and visualize them along with the performance report on a dashboard. 
 
 **Architecture:**
