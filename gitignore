@@ -1,0 +1,47 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+env/
+venv/
+.env/
+.venv/
+.conda/
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Data files (large — do not commit) ────────────────────────────────────────
+*.csv
+*.parquet
+*.h5
+train_spectrograms/
+val_spectrograms/
+test_spectrograms/
+
+# ── Trained model weights (large — do not commit) ─────────────────────────────
+*.pt
+*.pth
+*.ckpt
+*.bin
+models/
+
+# ── Logs & outputs ────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Environment variables ─────────────────────────────────────────────────────
+.env
+*.env
