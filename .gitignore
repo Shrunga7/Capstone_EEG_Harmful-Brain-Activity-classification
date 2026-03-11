@@ -13,14 +13,11 @@ venv/
 .ipynb_checkpoints/
 
 # Data (large files)
-data/
 *.csv
 *.parquet
+train_spectrograms/
+test_spectrograms/
 
-# Models
-*.pt
-*.pth
-*.ckpt
 
 # IDE
 .vscode/

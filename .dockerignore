@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+.vscode/
+.git/
+.gitignore
+
+train_spectrograms/
+test_spectrograms/
+data/
+*.csv
+*.parquet
+*.ipynb

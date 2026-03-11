@@ -10,6 +10,7 @@ Sequence Modeling: Use LSTM for the time-series analysis of the temporal sequenc
 
 It requires a streaming pipeline to continuously feed the spectrograms to a CNN model and an API deployment (Docker/FastAPI). 
 
+
 **The User Interface:**
 
 Build a live Streamlit or React Dashboard that updates the classification results in real-time.
