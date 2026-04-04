@@ -22,7 +22,22 @@ test_spectrograms/
 # IDE
 .vscode/
 .idea/
+*.swp
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Build
+.cache/
+*.tmp
+*.temp
+
+# Docker
+*.tar
+*.gz
+*.zip
+
+#logs
+logs/
+*.log
