@@ -58,9 +58,11 @@ MODEL_PATH = BASE_DIR / "CNN_LSTM_KLD_v0.pth"
 # Folder containing demo parquet files for auto-streaming on dashboard
 SPECTROGRAM_DIR = BASE_DIR / "sample_spectrograms"
 
+LABELS_CSV = BASE_DIR / "test.csv"
+
 
 # Delay between demo predictions over WebSocket
-STREAM_INTERVAL = 1.5
+STREAM_INTERVAL = 3
 
 # Output classes in correct order used during training
 CLASSES = ["Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"]
@@ -155,6 +157,37 @@ def load_model() -> bool:
 
 MODEL_LOADED = load_model()
 
+# =============================================================================
+# Ground truth labels for dashboard
+# =============================================================================
+
+GROUND_TRUTH_MAP = {}
+
+def load_ground_truth():
+    global GROUND_TRUTH_MAP
+
+    if not LABELS_CSV.exists():
+        print(f"WARNING: Ground truth CSV not found: {LABELS_CSV}")
+        return False
+
+    try:
+        df = pd.read_csv(LABELS_CSV)
+
+        # Use spectrogram_id -> expert_consensus
+        GROUND_TRUTH_MAP = {
+            str(row["spectrogram_id"]): str(row["expert_consensus"])
+            for _, row in df.iterrows()
+        }
+
+        print(f"SUCCESS: Loaded {len(GROUND_TRUTH_MAP)} ground truth labels")
+        return True
+
+    except Exception as e:
+        print(f"ERROR: Ground truth load failed: {e}")
+        return False
+
+GROUND_TRUTH_LOADED = load_ground_truth()
+
 
 # =============================================================================
 # PREPROCESSING
@@ -223,6 +256,30 @@ def preprocess_parquet(path: str):
     except Exception as e:
         print(f"Preprocess error for {os.path.basename(path)}: {e}")
         return None
+    
+#----To predict severity based on predicted class and modelconfidence score-----
+def get_severity(predicted_class: str, confidence: float) -> str:
+    # Base severity by class
+    base_map = {
+        "Seizure": 3,
+        "LPD": 2,
+        "GPD": 2,
+        "GRDA": 2,
+        "LRDA": 1,
+        "Other": 1
+    }
+
+    level = base_map.get(predicted_class, 1)
+
+    # Adjust using confidence
+    if confidence < 40:
+        return "UNCERTAIN"
+    elif confidence < 60:
+        level = max(1, level - 1)
+
+    labels = {1: "LOW", 2: "MEDIUM", 3: "HIGH"}
+    return labels[level]
+#-----------------------------------
 
 # This avoids repeating inference logic in multiple places.
 def predict_tensor(tensor: torch.Tensor):
@@ -241,7 +298,9 @@ def predict_tensor(tensor: torch.Tensor):
 
     idx  = int(np.argmax(probs))
     conf = float(probs[idx] * 100)
-    risk = "HIGH" if idx == 0 else ("MEDIUM" if idx in (1, 2, 4) else "LOW")
+    # risk = "HIGH" if idx == 0 else ("MEDIUM" if idx in (1, 2, 4) else "LOW")
+    predicted_class = CLASSES[idx]
+    risk = get_severity(predicted_class, conf)
 
     return {
         "predicted": CLASSES[idx],
@@ -280,6 +339,7 @@ class SpectrogramStreamer:
         seconds = int((datetime.now() - self.started_at).total_seconds())
         return f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{seconds%60:02d}"
 
+
     def simulate(self):
         """
         Fallback prediction payload when model/data unavailable.
@@ -295,7 +355,7 @@ class SpectrogramStreamer:
             "total_files": self.total,
             "predicted": CLASSES[idx],
             "confidence": round(float(probs[idx] * 100), 1),
-            "risk": "LOW",
+            "risk": "Uncertain",
             "probabilities": {
                 cls_name: round(float(p * 100), 1)
                 for cls_name, p in zip(CLASSES, probs)
@@ -324,6 +384,10 @@ class SpectrogramStreamer:
         tensor = preprocess_parquet(path)
         pred = predict_tensor(tensor)
 
+        #Ground truth
+        true_label = GROUND_TRUTH_MAP.get(str(spec_id))
+        is_correct = None if true_label is None else (pred["predicted"] == true_label)
+
         # Fallback if preprocessing or prediction failed
         if pred is None:
             return self.simulate()
@@ -337,6 +401,8 @@ class SpectrogramStreamer:
             "confidence": pred["confidence"],
             "risk": pred["risk"],
             "probabilities": pred["probabilities"],
+            "ground_truth": true_label,
+            "is_correct": is_correct, # Updated to include correctness of prediction
             "elapsed": self.elapsed(),
             "timestamp": datetime.now().strftime("%H:%M:%S"),
         }
@@ -412,11 +478,49 @@ h1{margin-bottom:8px;}
   font-weight:700;
   font-size:13px;
 }
+@keyframes blinkSoft {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+.uncertain {
+  background: #444;
+  color: #ddd;
+  animation: blinkSoft 1.5s infinite;
+}
 .high{background:#5a1827;color:#ff8fa6;}
 .medium{background:#5a4318;color:#ffc266;}
 .low{background:#163926;color:#7ae7a1;}
 input[type=file]{
   margin:10px 0;
+}
+.validation-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #1b2740;
+  border-left: 4px solid #9eb3c9;
+}
+
+/* Dynamic colors */
+.validation-correct {
+  border-left-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.validation-incorrect {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.info-text {
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #1b2740;
+  border-left: 3px solid #4ea1ff;
+  font-size: 13px;
+  color: #cbd5e1;
+  border-radius: 6px;
 }
 button{
   background:#2563eb;
@@ -460,7 +564,12 @@ pre{
       <div class="big" id="predicted">—</div>
       <div class="small">Confidence: <span id="confidence">—</span>%</div>
       <div style="margin-top:10px">
-        <span id="risk" class="status low">—</span>
+        Severity Level: <span id="risk" class="status low">—</span>
+      </div>
+      <div id="infoText" class="info-text">ℹ Severity level based on predicted class and model confidence</div>
+      <div id="validationBox" class="validation-box">
+        <div>Ground Truth: <span id="groundTruth">—</span></div>
+        <div>Validation: <span id="validationStatus">—</span></div>
       </div>
       <div style="margin-top:14px" class="small">Spec ID: <span id="specId">—</span></div>
       <div class="small">Source: <span id="source">—</span></div>
@@ -507,7 +616,11 @@ barsContainer.innerHTML = CLASSES.map(c => `
 function setRiskBadge(risk){
   const el = document.getElementById("risk");
   el.textContent = risk;
-  el.className = "status " + (risk === "HIGH" ? "high" : risk === "MEDIUM" ? "medium" : "low");
+
+  if (risk === "HIGH") el.className = "status high";
+  else if (risk === "MEDIUM") el.className = "status medium";
+  else if (risk === "LOW") el.className = "status low";
+  else if (risk === "UNCERTAIN") el.className = "status uncertain"; // for UNCERTAIN
 }
 
 function updateDashboard(data){
@@ -537,6 +650,35 @@ function updateDashboard(data){
 
   while (log.children.length > 30){
     log.removeChild(log.lastChild);
+  }
+  const infoEl = document.getElementById("infoText");
+  if (data.risk === "UNCERTAIN"){
+    infoEl.textContent = "⚠ Low confidence — review recommended";
+  }
+  else{
+    infoEl.textContent = "ℹ Severity level based on predicted class and model confidence";
+  }
+
+  const box = document.getElementById("validationBox");
+  const gtEl = document.getElementById("groundTruth");
+  const validationEl = document.getElementById("validationStatus");
+
+  gtEl.textContent = data.ground_truth ?? "N/A";
+
+  // Reset
+  box.className = "validation-box";
+
+  if (data.is_correct === true){
+    validationEl.textContent = "✔ Correct";
+    box.classList.add("validation-correct");
+  }
+  else if (data.is_correct === false){
+    validationEl.textContent = "✖ Incorrect";
+    box.classList.add("validation-incorrect");
+  }
+  else{
+    validationEl.textContent = "Unknown";
+    box.classList.add("validation-unknown");
   }
 }
 
@@ -595,6 +737,8 @@ async function uploadParquet(){
         confidence: result.confidence,
         risk: result.risk,
         probabilities: result.probabilities,
+        ground_truth: result.ground_truth,
+        is_correct: result.is_correct,
         elapsed: "manual",
         timestamp: new Date().toLocaleTimeString()
       });
@@ -675,6 +819,11 @@ async def predict_uploaded_file(file: UploadFile = File(...)):
                 status_code=500,
                 content={"error": "Prediction failed"}
             )
+        
+        # Ground truth
+        spec_id = os.path.splitext(file.filename)[0]
+        true_label = GROUND_TRUTH_MAP.get(str(spec_id))
+        is_correct = None if true_label is None else (pred["predicted"] == true_label)
 
         # Return structured response
         return {
@@ -682,7 +831,9 @@ async def predict_uploaded_file(file: UploadFile = File(...)):
             "predicted": pred["predicted"],
             "confidence": pred["confidence"],
             "risk": pred["risk"],
-            "probabilities": pred["probabilities"]
+            "probabilities": pred["probabilities"],
+            "ground_truth": true_label, # Updated to include ground truth in response
+            "is_correct": is_correct
         }
 
     except Exception as e:

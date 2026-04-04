@@ -1,0 +1,30 @@
+# Ignore everything unnecessary
+
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+
+# Python envs
+venv/
+.env/
+.venv/
+
+# Large datasets (IMPORTANT)
+
+
+# If your spectrogram folder is large, exclude it
+# then manually keep only a few samples
+#sample_spectrograms/*
+
+# BUT allow few demo files (optional)
+#!sample_spectrograms/sample1.parquet
+#!sample_spectrograms/sample2.parquet
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

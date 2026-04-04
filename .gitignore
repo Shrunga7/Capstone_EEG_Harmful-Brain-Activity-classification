@@ -17,7 +17,7 @@ venv/
 *.parquet
 train_spectrograms/
 test_spectrograms/
-
+*.pth
 
 # IDE
 .vscode/

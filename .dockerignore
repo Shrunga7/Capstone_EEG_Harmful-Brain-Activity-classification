@@ -10,6 +10,6 @@ __pycache__/
 train_spectrograms/
 test_spectrograms/
 data/
-*.csv
+
 *.parquet
 *.ipynb

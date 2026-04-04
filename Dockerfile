@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app ./app
 COPY CNN_LSTM_KLD_v0.pth .
 COPY sample_spectrograms ./sample_spectrograms
+COPY test.csv .
 
 ENV PORT=8080
 
