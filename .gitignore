@@ -1,0 +1,53 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+#Environment variables
+.env
+
+# Large files
+*.pth
+*.pt
+*.h5
+*.ckpt
+*.onnx
+*.joblib
+
+# Data
+*.csv
+*.parquet
+*.npy
+*.npz
+data/
+sample_spectrograms/
+
+# Build
+.cache/
+*.tmp
+*.temp
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+*.gz
+*.zip
+
+#logs
+logs/
+*.log
