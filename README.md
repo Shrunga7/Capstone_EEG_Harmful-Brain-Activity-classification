@@ -69,4 +69,48 @@ LLM Integration: Gemini API
 ├── requirements.txt  
 └── README.md  
 
+### Installation & Setup
+1. Clone the repository
+2. Create a Virtual environment.
+       python -m venv venv
+       source venv/bin/activate   # Mac/Linux
+       venv\Scripts\activate      # Windows
+ 
+3. Install dependencies: pip install -r requirements.txt
+4. Environmental Variables:
+     export GEMINI_API_KEY=your_api_key   # Mac/Linux
+     set GEMINI_API_KEY=your_api_key      # Windows
+5. Run Locally: uvicorn app.main:app --reload
+6. Open in browser: http://localhost:8000
+7. Docker Deployment:
+   1. Build image: docker build -t eeg-dashboard .
+   2. Run Container: docker run -p 8000:8000 eeg-dashboard
+9. Google Cloud Deployment: gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT-ID/ml-deploy/eeg-dashboard
+10. gcloud run deploy eeg-dashboard \
+  --image us-central1-docker.pkg.dev/PROJECT-ID/ml-deploy/eeg-dashboard \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY=YOUR_API_KEY
+
+11. Sample Output:
+    {
+  "filename": "sample.parquet",
+  "predicted": "GPD",
+  "confidence": 59.1,
+  "risk": "LOW",
+  "probabilities": {
+    "Seizure": 7.2,
+    "LPD": 1.6,
+    "GPD": 59.1,
+    "LRDA": 0.5,
+    "GRDA": 1.9,
+    "Other": 29.7
+  }
+}
+  
+
+
+
+
 
