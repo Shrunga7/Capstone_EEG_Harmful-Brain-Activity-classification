@@ -95,18 +95,20 @@ LLM Integration: Gemini API
 
 11. Sample Output:  
     {  
-  "filename": "sample.parquet",  
-  "predicted": "GPD",  
-  "confidence": 59.1,  
+  "filename": "1353070.parquet",  
+  "predicted": "Other",  
+  "confidence": 51.3,  
   "risk": "LOW",  
   "probabilities": {  
-    "Seizure": 7.2,  
-    "LPD": 1.6,  
-    "GPD": 59.1,  
-    "LRDA": 0.5,  
-    "GRDA": 1.9,  
-    "Other": 29.7  
-  }  
+    "Seizure": 0.2,  
+    "LPD": 1.8,  
+    "GPD": 46.3,  
+    "LRDA": 0.2,  
+    "GRDA": 0.2,  
+    "Other": 51.3  
+  },  
+  "ground_truth": "Other",  
+  "is_correct": true  
 }  
   
 
