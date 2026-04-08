@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY CNN_LSTM_KLD_v0.pth .
+COPY CNN_LSTM_weightedKL_v1.pth .
 COPY sample_spectrograms ./sample_spectrograms
 COPY test.csv .
 

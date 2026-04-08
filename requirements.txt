@@ -2,9 +2,13 @@
 # Install with: pip install -r requirements.txt
 
 # Web server & real-time communication
-fastapi==0.104.1
-uvicorn==0.24.0
-websockets==12.0
+# fastapi==0.104.1
+# uvicorn==0.24.0
+# websockets==12.0
+
+fastapi==0.110.0
+uvicorn==0.27.1
+websockets==14.0
 
 # Deep learning (must match version used in your notebooks)
 torch==2.4.0
@@ -17,6 +21,10 @@ pyarrow==14.0.1       # parquet reader
 
 # Image processing (spectrogram resizing)
 opencv-python-headless==4.8.1.78
-python-multipart ==0.0.5    # For file uploads in FastAPI
+# python-multipart ==0.0.5    # For file uploads in FastAPI
+python-multipart==0.0.9
+
+# Api key 
+google-genai==1.70.0
 
 # pip install -r requirements.txt

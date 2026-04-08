@@ -44,8 +44,30 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel # <--- NEW LLM LAYER
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW LLM LAYER: INITIALIZATION (DEBUG MODE)
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    from google import genai
+    from google.genai import types
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    print("GEMINI_API_KEY found:", bool(api_key))
+
+    if not api_key:
+        raise ValueError("Missing GEMINI_API_KEY")
+
+    gemini_client = genai.Client(api_key=api_key)
+    LLM_READY = True
+    print("Gemini client initialized successfully")
+
+except Exception as e:
+    print(f"\n⚠️ GEMINI FATAL ERROR: {type(e).__name__}: {e}\n")
+    gemini_client = None
+    LLM_READY = False
 # =============================================================================
 # CONFIG
 # =============================================================================
@@ -53,7 +75,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Path to trained model weights
-MODEL_PATH = BASE_DIR / "CNN_LSTM_KLD_v0.pth"
+MODEL_PATH = BASE_DIR / "CNN_LSTM_weightedKL_v1.pth"
+print(f"Resolved model path: {MODEL_PATH}")
 
 # Folder containing demo parquet files for auto-streaming on dashboard
 SPECTROGRAM_DIR = BASE_DIR / "sample_spectrograms"
@@ -77,7 +100,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # =============================================================================
 
 class HybridLSTMSpectrogramModel(nn.Module):
-    def __init__(self, num_classes=6, hidden_size=256, num_layers=2):
+    def __init__(self, num_classes=6, hidden_size=128, num_layers=2, dropout=0.3):
         super().__init__()
 
         # EfficientNet-B0 feature extractor
@@ -95,11 +118,17 @@ class HybridLSTMSpectrogramModel(nn.Module):
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
-            bidirectional=True
+            bidirectional=True,
+            dropout=dropout if num_layers > 1 else 0.0
         )
 
         # Final classifier
-        self.classifier = nn.Linear(hidden_size * 2, num_classes)
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size * 2, 128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(128, num_classes)
+        )
 
     def forward(self, x):
         # x shape: (B, 1, 128, 256)
@@ -134,7 +163,7 @@ def load_model() -> bool:
 
     try:
         # Create model object
-        MODEL = HybridLSTMSpectrogramModel(num_classes=6, hidden_size=256).to(DEVICE)
+        MODEL = HybridLSTMSpectrogramModel(num_classes=6, hidden_size=128, num_layers=2, dropout=0.3).to(DEVICE)
 
         # Load checkpoint
         state = torch.load(MODEL_PATH, map_location=DEVICE)
@@ -275,7 +304,7 @@ def get_severity(predicted_class: str, confidence: float) -> str:
     if confidence < 40:
         return "UNCERTAIN"
     elif confidence < 60:
-        level = max(1, level - 1)
+        level = max(1, level - 1) 
 
     labels = {1: "LOW", 2: "MEDIUM", 3: "HIGH"}
     return labels[level]
@@ -594,6 +623,11 @@ pre{
   </div>
 
   <div class="card">
+    <div class="small">LLM Summary</div>
+    <pre id="llmSummary">No summary yet.</pre>
+  </div>
+
+  <div class="card">
     <div class="small">Live Demo Log</div>
     <div id="log"></div>
   </div>
@@ -621,6 +655,38 @@ function setRiskBadge(risk){
   else if (risk === "MEDIUM") el.className = "status medium";
   else if (risk === "LOW") el.className = "status low";
   else if (risk === "UNCERTAIN") el.className = "status uncertain"; // for UNCERTAIN
+}
+
+async function fetchLLMSummary(data){
+  const summaryBox = document.getElementById("llmSummary");
+
+  if (!data || !data.probabilities || Object.keys(data.probabilities).length === 0){
+    summaryBox.textContent = "No probabilities available for summary.";
+    return;
+  }
+
+  summaryBox.textContent = "Generating summary...";
+
+  try{
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        probabilities: data.probabilities,
+        predicted: data.predicted,
+        confidence: data.confidence,
+        ground_truth: data.ground_truth,
+        is_correct: data.is_correct
+      })
+    });
+
+    const result = await response.json();
+    summaryBox.textContent = result.summary || "No summary returned.";
+  }catch(err){
+    summaryBox.textContent = "Failed to generate summary: " + err;
+  }
 }
 
 function updateDashboard(data){
@@ -694,10 +760,18 @@ function connectWebSocket(){
     setTimeout(connectWebSocket, 2500);
   };
   ws.onerror = (e) => console.error("WebSocket error:", e);
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    updateDashboard(data);
-  };
+//   ws.onmessage = (event) => {
+//     const data = JSON.parse(event.data);
+//     updateDashboard(data);
+//   };
+    ws.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+      updateDashboard(data);
+
+      if (data.probabilities){
+        // await fetchLLMSummary(data);
+      }
+    };
 }
 
 connectWebSocket();
@@ -715,7 +789,8 @@ async function uploadParquet(){
   const formData = new FormData();
   formData.append("file", input.files[0]);
 
-  output.textContent = "Uploading and predicting...";
+  //output.textContent = "Uploading and predicting...";
+  document.getElementById("llmSummary").textContent = "Waiting for prediction...";
 
   try{
     const response = await fetch("/predict", {
@@ -742,6 +817,7 @@ async function uploadParquet(){
         elapsed: "manual",
         timestamp: new Date().toLocaleTimeString()
       });
+      await fetchLLMSummary(result);
     }
   }catch(err){
     output.textContent = "Upload failed: " + err;
@@ -777,7 +853,8 @@ async def health():
         "status": "ok",
         "model_loaded": MODEL_LOADED,
         "device": str(DEVICE),
-        "demo_files_found": streamer.total
+        "demo_files_found": streamer.total,
+        "llm_ready": LLM_READY
     }
 
 
@@ -868,6 +945,57 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except Exception as e:
         print(f"WebSocket error: {e}")
+
+
+# NEW LLM LAYER API ENDPOINT
+# ─────────────────────────────────────────────────────────────────────────────
+class SummaryRequest(BaseModel):
+    probabilities: dict
+    predicted: str
+    confidence: float
+    ground_truth: str | None = None
+    is_correct: bool | None = None
+
+
+@app.post("/api/summarize")
+async def summarize_probabilities(req: SummaryRequest):
+    if not LLM_READY:
+        return {"summary": "LLM API is not configured. Please export GEMINI_API_KEY in your server environment."}
+
+    try:
+        sys_instruct = (
+            "You are a medical translator. Convert EEG classification output "
+            "into a simple explanation for a layperson in no more than two sentences. "
+            "If is_correct is false, clearly say the prediction did not match the ground truth. "
+            "Mention the top predicted class and, if useful, the next most likely class. "
+            "Do not diagnose or give medical advice. Only describe what the model output indicates."
+        )
+
+        prompt = f"""
+        The EEG model output is:
+        Probabilities: {req.probabilities}
+        Predicted class: {req.predicted}
+        Confidence: {req.confidence}
+        Ground truth: {req.ground_truth}
+        Is correct: {req.is_correct}
+
+        Please summarize this in simple language for a non-expert.
+        """
+
+        response = gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=sys_instruct,
+                temperature=0.2,
+            )
+        )
+
+        return {"summary": response.text}
+
+    except Exception as e:
+        return {"summary": f"Error generating summary: {str(e)}"}
+
 
 
 # =============================================================================

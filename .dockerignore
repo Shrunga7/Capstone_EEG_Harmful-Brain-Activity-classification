@@ -11,5 +11,4 @@ train_spectrograms/
 test_spectrograms/
 data/
 
-*.parquet
 *.ipynb
