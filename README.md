@@ -10,11 +10,11 @@ It provides a web-based dashboard where users can upload EEG files and receive:
   * Severity level
   * Human-readable explanation (via LLM)
 
-**Architecture:**
-Input: EEG Spectrogram (128 × 256)  
-Spatial Feature Extraction: CNN (frozen layers until 3 epochs)  
-Capture Temporal dependencies: LSTM  
-Output: 6-class classification  
+**Architecture:**  
+* Input: EEG Spectrogram (128 × 256)  
+* Spatial Feature Extraction: CNN (frozen layers until 3 epochs)  
+* Capture Temporal dependencies: LSTM  
+* Output: 6-class classification  
 
 * User (Upload spectrogram .parquet file) -> Frontend Dashboard (HTML/CSS/JS)  -> Backend API (FastAPI) -> Preprocessing (Spectrograms) -> ML Model (PyTorch CNN + LSTM) -> Prediction Output (JSON: class, confidence, risk) -> LLM Layer (Readable Explanation) -> Dashboard Visualization -> Deployment (Docker → Google Cloud Run)  
  
